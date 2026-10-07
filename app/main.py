@@ -118,7 +118,7 @@ def take_stock_for_update(conn, order: OrderIn):
     )
 
 
-# both are safe; atomic holds the row lock for less time (see NOTES.md)
+# both are safe; atomic holds the row lock only for the UPDATE itself
 take_stock = (
     take_stock_for_update
     if os.environ.get("ORDER_LOCKING") == "for_update"

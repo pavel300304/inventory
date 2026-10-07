@@ -9,9 +9,9 @@ This is a 14-day practice project. It is built step by step, and this README is 
 **Day 1 — project skeleton only. Nothing runs yet.**
 
 - [ ] Database connection (`app/db.py`)
-- [ ] Schema migrations (Alembic)
-- [ ] Inventory endpoints
-- [ ] Order endpoints
+- [x] Schema migrations (Alembic)
+- [x] Inventory endpoints
+- [x] Order endpoints
 - [ ] Tokens and tenant checks (`app/auth.py`)
 - [ ] Tests (pytest)
 - [ ] Dockerfile and `compose.yaml`
@@ -96,11 +96,27 @@ _Variable names are placeholders until `db.py` and `auth.py` are written._
 
 ## API
 
-_No endpoints yet. This table is filled in as they are built._
-
 | Method | Path | What it does |
 | --- | --- | --- |
-| | | |
+| GET | `/health` | Liveness check |
+| POST | `/items` | Create an item (gets a generated `sku`) |
+| GET | `/items` | List items, `limit` / `offset` pagination |
+| GET | `/items/{id}` | Get one item |
+| PATCH | `/items/{id}` | Update name and/or stock |
+| POST | `/orders` | Order `quantity` of `item_id`; 409 if not enough stock |
+
+### Orders and concurrency
+
+`POST /orders` takes stock with a single conditional update
+(`UPDATE ... SET stock = stock - q WHERE ... AND stock >= q`), so concurrent
+orders can never oversell. Setting `ORDER_LOCKING=for_update` switches to
+`SELECT ... FOR UPDATE` instead. Taking stock and writing the order happen in
+one transaction, so a failure rolls the stock back.
+
+```bash
+python scripts/race_orders.py <item_id>          # 20 concurrent orders, prints status codes
+python -m scripts.check_order_rollback           # proves a failed order restores stock
+```
 
 ## Notes
 

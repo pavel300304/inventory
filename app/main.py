@@ -1,3 +1,4 @@
+import time
 from typing import Optional
 import uuid
 from fastapi import FastAPI, HTTPException, Query
@@ -8,6 +9,7 @@ from app.db import get_conn
 app = FastAPI()
 
 TENANT_ID = 1  # temporary: day 9 takes this from the logged-in user
+USER_ID = 1  # temporary: day 9 takes this from the logged-in user
 
 
 class ItemIn(BaseModel):
@@ -18,6 +20,11 @@ class ItemIn(BaseModel):
 class ItemUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1)
     stock: Optional[int] = Field(default=None, ge=0)
+
+
+class OrderIn(BaseModel):
+    item_id: int
+    quantity: int = Field(gt=0)
 
 
 @app.get("/health")
@@ -74,3 +81,34 @@ def update_item(item_id: int, update: ItemUpdate):
     if row is None:
         raise HTTPException(status_code=404, detail="item not found")
     return row
+
+
+@app.post("/orders", status_code=201)
+def create_order(order: OrderIn):
+    with get_conn() as conn:
+        item = conn.execute(
+            "SELECT stock FROM items WHERE id = %s AND tenant_id = %s",
+            (order.item_id, TENANT_ID),
+        ).fetchone()
+        if item is None:
+            raise HTTPException(status_code=404, detail="item not found")
+        if item["stock"] < order.quantity:
+            raise HTTPException(status_code=409, detail="not enough stock")
+
+        time.sleep(0.1)  # widen the gap between read and write so the race shows
+
+        conn.execute(
+            "UPDATE items SET stock = %s WHERE id = %s AND tenant_id = %s",
+            (item["stock"] - order.quantity, order.item_id, TENANT_ID),
+        )
+        row = conn.execute(
+            "INSERT INTO orders (tenant_id, user_id) VALUES (%s, %s) "
+            "RETURNING id",
+            (TENANT_ID, USER_ID),
+        ).fetchone()
+        conn.execute(
+            "INSERT INTO order_items (order_id, item_id, quantity) "
+            "VALUES (%s, %s, %s)",
+            (row["id"], order.item_id, order.quantity),
+        )
+    return {"id": row["id"], "item_id": order.item_id, "quantity": order.quantity}

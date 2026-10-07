@@ -1,5 +1,5 @@
 from typing import Optional
-
+import uuid
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -27,11 +27,12 @@ def health():
 
 @app.post("/items", status_code=201)
 def create_item(item: ItemIn):
+    sku = "SKU-" + uuid.uuid4().hex[:8].upper()
     with get_conn() as conn:
         row = conn.execute(
-            "INSERT INTO items (tenant_id, name, stock) VALUES (%s, %s, %s) "
-            "RETURNING id, name, stock",
-            (TENANT_ID, item.name, item.stock),
+            "INSERT INTO items (tenant_id, name, stock, sku) VALUES (%s, %s, %s, %s) "
+            "RETURNING id, name, stock, sku",
+            (TENANT_ID, item.name, item.stock, sku),
         ).fetchone()
     return row
 

@@ -1,4 +1,3 @@
-import time
 from typing import Optional
 import uuid
 from fastapi import FastAPI, HTTPException, Query
@@ -86,21 +85,22 @@ def update_item(item_id: int, update: ItemUpdate):
 @app.post("/orders", status_code=201)
 def create_order(order: OrderIn):
     with get_conn() as conn:
-        item = conn.execute(
-            "SELECT stock FROM items WHERE id = %s AND tenant_id = %s",
-            (order.item_id, TENANT_ID),
-        ).fetchone()
-        if item is None:
-            raise HTTPException(status_code=404, detail="item not found")
-        if item["stock"] < order.quantity:
+        # check and decrement in one statement, so no other request can slip
+        # in between the read and the write
+        updated = conn.execute(
+            "UPDATE items SET stock = stock - %s "
+            "WHERE id = %s AND tenant_id = %s AND stock >= %s",
+            (order.quantity, order.item_id, TENANT_ID, order.quantity),
+        ).rowcount
+        if updated == 0:
+            exists = conn.execute(
+                "SELECT 1 FROM items WHERE id = %s AND tenant_id = %s",
+                (order.item_id, TENANT_ID),
+            ).fetchone()
+            if exists is None:
+                raise HTTPException(status_code=404, detail="item not found")
             raise HTTPException(status_code=409, detail="not enough stock")
 
-        time.sleep(0.1)  # widen the gap between read and write so the race shows
-
-        conn.execute(
-            "UPDATE items SET stock = %s WHERE id = %s AND tenant_id = %s",
-            (item["stock"] - order.quantity, order.item_id, TENANT_ID),
-        )
         row = conn.execute(
             "INSERT INTO orders (tenant_id, user_id) VALUES (%s, %s) "
             "RETURNING id",

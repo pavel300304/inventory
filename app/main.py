@@ -83,6 +83,24 @@ def update_item(item_id: int, update: ItemUpdate):
     return row
 
 
+@app.delete("/items/{item_id}", status_code=204)
+def delete_item(item_id: int):
+    with get_conn() as conn:
+        referenced = conn.execute(
+            "SELECT 1 FROM order_items oi JOIN items i ON i.id = oi.item_id "
+            "WHERE i.id = %s AND i.tenant_id = %s LIMIT 1",
+            (item_id, TENANT_ID),
+        ).fetchone()
+        if referenced is not None:
+            raise HTTPException(status_code=409, detail="item has orders")
+        deleted = conn.execute(
+            "DELETE FROM items WHERE id = %s AND tenant_id = %s",
+            (item_id, TENANT_ID),
+        ).rowcount
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="item not found")
+
+
 def take_stock_atomic(conn, order: OrderIn):
     # check and decrement in one statement, so no other request can slip
     # in between the read and the write

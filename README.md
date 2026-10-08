@@ -13,7 +13,7 @@ This is a 14-day practice project. It is built step by step, and this README is 
 - [x] Inventory endpoints
 - [x] Order endpoints
 - [ ] Tokens and tenant checks (`app/auth.py`)
-- [ ] Tests (pytest)
+- [x] Tests (pytest)
 - [ ] Dockerfile and `compose.yaml`
 - [ ] CI pipeline (GitHub Actions)
 
@@ -77,10 +77,12 @@ The API will then be at `http://localhost:8000`, with interactive docs at `http:
 
 ## Running the tests
 
-_Not working yet._
+The tests use their own database, `postgres_test`, which `tests/conftest.py`
+creates and migrates on the first run. Every test starts with empty `items` and
+`orders` tables. Your dev database is never touched.
 
 ```bash
-pytest
+python -m pytest -v
 ```
 
 ## Configuration
@@ -103,6 +105,7 @@ _Variable names are placeholders until `db.py` and `auth.py` are written._
 | GET | `/items` | List items, `limit` / `offset` pagination |
 | GET | `/items/{id}` | Get one item |
 | PATCH | `/items/{id}` | Update name and/or stock |
+| DELETE | `/items/{id}` | Delete an item; 409 if it has orders |
 | POST | `/orders` | Order `quantity` of `item_id`; 409 if not enough stock |
 
 ### Orders and concurrency

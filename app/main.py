@@ -1,4 +1,8 @@
 import os
+import logging
+import psycopg
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from typing import Optional
 import uuid
 from fastapi import FastAPI, HTTPException, Query
@@ -7,6 +11,16 @@ from pydantic import BaseModel, Field
 from app.db import get_conn
 
 app = FastAPI()
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(psycopg.OperationalError)
+async def database_unavailable(request: Request, exc: psycopg.OperationalError):
+    logger.error("database unavailable: %s", exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "database unavailable, please try again later"},
+    )
 
 TENANT_ID = 1  # temporary: day 9 takes this from the logged-in user
 USER_ID = 1  # temporary: day 9 takes this from the logged-in user
